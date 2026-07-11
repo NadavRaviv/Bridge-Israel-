@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about the user's political profile and interests.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique user ID" },
+        "displayName": { "type": "string", "description": "Display name" },
+        "bio": { "type": "string", "description": "Short biography" },
+        "leaning": { "type": "string", "description": "Political leaning (Right, Left, Moderate, etc.)" },
+        "interests": { 
+          "type": "array", 
+          "items": { "type": "string" },
+          "description": "Topics of interest"
+        },
+        "supportCount": { "type": "integer", "description": "Number of supporters" },
+        "supporters": { "type": "array", "items": { "type": "string" }, "description": "List of UIDs who supported" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "leaning"]
+    },
+    "Debate": {
+      "title": "Structured Debate",
+      "description": "A structured discussion on a specific topic.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "topic": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "active", "closed"] },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "commonGrounds": { "type": "array", "items": { "type": "string" }, "description": "Analysed common grounds" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "DebateArgument": {
+      "title": "Debate Argument",
+      "description": "An argument or counter-argument in a debate.",
+      "type": "object",
+      "properties": {
+        "debateId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorLeaning": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["argument", "counter"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Report": {
+      "title": "Report Content",
+      "description": "User reports for inappropriate content.",
+      "type": "object",
+      "properties": {
+        "debateId": { "type": "string" },
+        "messageId": { "type": "string" },
+        "category": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "reportedUserId": { "type": "string" },
+        "reportedUserName": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["debateId", "messageId", "category", "reporterId", "reportedUserId", "reportedUserName", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/debates/{debateId}": {
+      "schema": "Debate",
+      "description": "Debate sessions"
+    },
+    "/debates/{debateId}/arguments/{argId}": {
+      "schema": "DebateArgument",
+      "description": "Arguments within a debate"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "User reported content and categories"
+    }
+  }
+}

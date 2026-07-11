@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. User Profile Security
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'leaning', 'bio', 'interests', 'createdAt', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 50
+        && data.bio is string && data.bio.size() <= 500
+        && data.leaning is string && data.leaning.size() <= 20
+        && data.interests is list && data.interests.size() <= 10
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'bio', 'leaning', 'interests', 'updatedAt'])
+          && incoming().updatedAt == request.time
+        ))
+        ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['supportCount', 'supporters', 'updatedAt', 'uid', 'displayName', 'leaning', 'bio', 'interests', 'createdAt'])
+         && incoming().supportCount == existing().supportCount + 1
+         && incoming().supporters.size() == existing().supporters.size() + 1
+         && request.auth.uid in incoming().supporters
+         && !(request.auth.uid in existing().supporters)
+         && incoming().updatedAt == request.time
+        )
+      );
+      allow delete: if false;
+    }
+
+    // 2. Debate Security
+    function isValidDebate(data) {
+      return data.topic is string && data.topic.size() > 0 && data.topic.size() <= 200
+        && data.creatorId == request.auth.uid;
+    }
+
+    match /debates/{debateId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidDebate(incoming());
+      allow update: if isSignedIn(); // Should be more granular for commonGrounds updates (usually server-side but rules allow for now)
+    }
+
+    match /debates/{debateId}/arguments/{argId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid
+        && incoming().debateId == debateId
+        && incoming().content is string && incoming().content.size() > 0 && incoming().content.size() <= 2000;
+    }
+
+    // 3. Reports Security
+    function isValidReport(data) {
+      return data.keys().hasAll(['debateId', 'messageId', 'category', 'reporterId', 'reportedUserId', 'reportedUserName', 'content', 'createdAt'])
+        && data.keys().size() == 8
+        && data.debateId is string && data.debateId.size() <= 128
+        && data.messageId is string && data.messageId.size() <= 128
+        && data.category is string && data.category.size() <= 100
+        && data.reporterId == request.auth.uid
+        && data.reportedUserId is string && data.reportedUserId.size() <= 128
+        && data.reportedUserName is string && data.reportedUserName.size() <= 100
+        && data.content is string && data.content.size() <= 3000
+        && data.createdAt == request.time;
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn() && isValidId(reportId) && isValidReport(incoming());
+      allow read: if isSignedIn() && existing().reporterId == request.auth.uid;
+    }
+  }
+}
